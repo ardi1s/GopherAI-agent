@@ -31,6 +31,7 @@
         <button class="sync-btn" @click="syncHistory" :disabled="!currentSessionId || tempSession">同步历史数据</button>
         <label for="modelType">选择模型：</label>
         <select id="modelType" v-model="selectedModel" class="model-select">
+          <option value="auto">🤖 自动识别</option>
           <option value="1">阿里百炼</option>
           <option value="2">阿里百炼 RAG</option>
           <option value="3">阿里百炼 MCP</option>
@@ -421,7 +422,7 @@ export default {
                 currentMessages.value[aiMessageIndex].meta = { status: 'done' }
                 currentMessages.value = [...currentMessages.value]
               } else if (data.startsWith('{')) {
-                // 尝试解析 JSON（如 sessionId）
+                // 尝试解析 JSON（如 sessionId, usedModelType）
                 try {
                   const parsed = JSON.parse(data)
                   if (parsed.sessionId) {
@@ -436,6 +437,12 @@ export default {
                       currentSessionId.value = newSid
                       tempSession.value = false
                     }
+                  }
+                  // 处理 usedModelType，自动更新下拉框
+                  if (parsed.usedModelType && selectedModel.value === 'auto') {
+                    // 不自动切换，保持 auto 状态
+                    console.log('[SSE] Used model type:', parsed.usedModelType)
+                    ElMessage.info(`已智能选择模型：${getModelName(parsed.usedModelType)}`)
                   }
                 } catch (e) {
                   // 不是 JSON，当作普通文本处理
@@ -510,6 +517,14 @@ export default {
           }
           currentSessionId.value = sessionId
           tempSession.value = false
+          
+          // 如果后端返回了实际使用的模型类型，更新下拉框
+          if (response.data.usedModelType && selectedModel.value === 'auto') {
+            // 不自动切换，保持 auto 状态
+            console.log('[Auto] Used model type:', response.data.usedModelType)
+            ElMessage.info(`已智能选择模型：${getModelName(response.data.usedModelType)}`)
+          }
+          
           currentMessages.value = [...sessions.value[sessionId].messages]
         } else {
           ElMessage.error(response.data?.status_msg || '发送失败')
@@ -531,6 +546,13 @@ export default {
           const aiMessage = { role: 'assistant', content: response.data.Information || '' }
           sessionMsgs.push(aiMessage)
           currentMessages.value = [...sessionMsgs]
+          
+          // 如果后端返回了实际使用的模型类型，更新下拉框
+          if (response.data.usedModelType && selectedModel.value === 'auto') {
+            // 不自动切换，保持 auto 状态
+            console.log('[Auto] Used model type:', response.data.usedModelType)
+            ElMessage.info(`已智能选择模型：${getModelName(response.data.usedModelType)}`)
+          }
         } else {
           ElMessage.error(response.data?.status_msg || '发送失败')
           sessionMsgs.pop() // rollback
@@ -554,6 +576,15 @@ export default {
       if (fileInput.value) {
         fileInput.value.click()
       }
+    }
+    
+    const getModelName = (modelType) => {
+      const names = {
+        '1': '阿里百炼',
+        '2': '阿里百炼 RAG',
+        '3': '阿里百炼 MCP'
+      }
+      return names[modelType] || modelType
     }
 
     const handleFileUpload = async (event) => {

@@ -6,14 +6,31 @@ import (
 	"GopherAI/dao/message"
 	"GopherAI/dao/session"
 	"GopherAI/model"
+	"GopherAI/service/intent"
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/google/uuid"
 )
 
 var ctx = context.Background()
+var intentRecognizer *intent.IntentRecognizer
+
+// init 初始化意图识别器
+func init() {
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	baseURL := os.Getenv("OPENAI_BASE_URL")
+	// 使用轻量级模型做意图识别，降低成本
+	model := "qwen-turbo"
+	
+	if apiKey != "" {
+		intentRecognizer = intent.NewIntentRecognizer(apiKey, baseURL, model)
+		log.Println("IntentRecognizer initialized")
+	}
+}
 
 func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
 	//获取用户的所有会话ID
@@ -33,7 +50,14 @@ func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
 	return SessionInfos, nil
 }
 
-func CreateSessionAndSendMessage(userName string, userQuestion string, modelType string) (string, string, code.Code) {
+func CreateSessionAndSendMessage(userName string, userQuestion string, modelType string) (string, string, string, code.Code) {
+	originalModelType := modelType
+	
+	// 如果 modelType 为空，自动识别意图
+	if modelType == "" || modelType == "auto" {
+		modelType = detectModelType(userQuestion)
+	}
+	
 	//1：创建一个新的会话
 	newSession := &model.Session{
 		ID:       uuid.New().String(),
@@ -43,10 +67,10 @@ func CreateSessionAndSendMessage(userName string, userQuestion string, modelType
 	createdSession, err := session.CreateSession(newSession)
 	if err != nil {
 		log.Println("CreateSessionAndSendMessage CreateSession error:", err)
-		return "", "", code.CodeServerBusy
+		return "", "", originalModelType, code.CodeServerBusy
 	}
 
-	//2：获取AIHelper并通过其管理消息
+	//2：获取 AIHelper 并通过其管理消息
 	manager := aihelper.GetGlobalManager()
 	config := map[string]interface{}{
 		"apiKey":   "your-api-key", // TODO: 从配置中获取
@@ -55,17 +79,41 @@ func CreateSessionAndSendMessage(userName string, userQuestion string, modelType
 	helper, err := manager.GetOrCreateAIHelper(userName, createdSession.ID, modelType, config)
 	if err != nil {
 		log.Println("CreateSessionAndSendMessage GetOrCreateAIHelper error:", err)
-		return "", "", code.AIModelFail
+		return "", "", originalModelType, code.AIModelFail
 	}
 
-	//3：生成AI回复
+	//3：生成 AI 回复
 	aiResponse, err_ := helper.GenerateResponse(userName, ctx, userQuestion)
 	if err_ != nil {
 		log.Println("CreateSessionAndSendMessage GenerateResponse error:", err_)
-		return "", "", code.AIModelFail
+		return "", "", originalModelType, code.AIModelFail
 	}
 
-	return createdSession.ID, aiResponse.Content, code.CodeSuccess
+	return createdSession.ID, aiResponse.Content, modelType, code.CodeSuccess
+}
+
+// detectModelType 根据问题自动检测模型类型
+func detectModelType(question string) string {
+	if intentRecognizer == nil {
+		return "1" // 默认普通聊天
+	}
+	
+	intentResult, err := intentRecognizer.Recognize(context.Background(), question)
+	if err != nil {
+		log.Printf("detectModelType error: %v", err)
+		return "1"
+	}
+	
+	log.Printf("Intent detected: type=%s, tool=%s", intentResult.Type, intentResult.Tool)
+	
+	switch intentResult.Type {
+	case intent.IntentRAG:
+		return "2" // RAG 模型
+	case intent.IntentMCP:
+		return "3" // MCP 模型
+	default:
+		return "1" // 普通聊天
+	}
 }
 
 func CreateStreamSessionOnly(userName string, userQuestion string) (string, code.Code) {
@@ -83,6 +131,11 @@ func CreateStreamSessionOnly(userName string, userQuestion string) (string, code
 }
 
 func StreamMessageToExistingSession(userName string, sessionID string, userQuestion string, modelType string, writer http.ResponseWriter) code.Code {
+	// 如果 modelType 为空或为 auto，自动识别意图
+	if modelType == "" || modelType == "auto" {
+		modelType = detectModelType(userQuestion)
+	}
+	
 	// 确保 writer 支持 Flush
 	flusher, ok := writer.(http.Flusher)
 	if !ok {
@@ -100,6 +153,14 @@ func StreamMessageToExistingSession(userName string, sessionID string, userQuest
 		log.Println("StreamMessageToExistingSession GetOrCreateAIHelper error:", err)
 		return code.AIModelFail
 	}
+
+	// 先返回实际使用的模型类型给前端
+	modelInfo := map[string]string{
+		"usedModelType": modelType,
+	}
+	jsonData, _ := json.Marshal(modelInfo)
+	writer.Write([]byte("data: " + string(jsonData) + "\n\n"))
+	flusher.Flush()
 
 	cb := func(msg string) {
 		// 直接发送数据，不转义
@@ -131,6 +192,10 @@ func StreamMessageToExistingSession(userName string, sessionID string, userQuest
 }
 
 func CreateStreamSessionAndSendMessage(userName string, userQuestion string, modelType string, writer http.ResponseWriter) (string, code.Code) {
+	// 如果 modelType 为空，自动识别意图
+	if modelType == "" || modelType == "auto" {
+		modelType = detectModelType(userQuestion)
+	}
 
 	sessionID, code_ := CreateStreamSessionOnly(userName, userQuestion)
 	if code_ != code.CodeSuccess {
@@ -147,10 +212,15 @@ func CreateStreamSessionAndSendMessage(userName string, userQuestion string, mod
 }
 
 func ChatSend(userName string, sessionID string, userQuestion string, modelType string) (string, code.Code) {
-	//1：获取AIHelper
+	// 如果 modelType 为空，自动识别意图
+	if modelType == "" || modelType == "auto" {
+		modelType = detectModelType(userQuestion)
+	}
+	
+	//1：获取 AIHelper
 	manager := aihelper.GetGlobalManager()
 	config := map[string]interface{}{
-		"username": userName, // 用于 RAG 模型获取用户文档（若当前用户选择了RAG模型，该字段将会被用到）
+		"username": userName, // 用于 RAG 模型获取用户文档（若当前用户选择了 RAG 模型，该字段将会被用到）
 	}
 	helper, err := manager.GetOrCreateAIHelper(userName, sessionID, modelType, config)
 	if err != nil {
@@ -158,7 +228,7 @@ func ChatSend(userName string, sessionID string, userQuestion string, modelType 
 		return "", code.AIModelFail
 	}
 
-	//2：生成AI回复
+	//2：生成 AI 回复
 	aiResponse, err_ := helper.GenerateResponse(userName, ctx, userQuestion)
 	if err_ != nil {
 		log.Println("ChatSend GenerateResponse error:", err_)

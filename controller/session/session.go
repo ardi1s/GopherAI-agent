@@ -22,8 +22,9 @@ type (
 	}
 
 	CreateSessionAndSendMessageResponse struct {
-		AiInformation string `json:"Information,omitempty"` // AI回答
-		SessionID     string `json:"sessionId,omitempty"`   // 当前会话ID
+		AiInformation string `json:"Information,omitempty"`   // AI 回答
+		SessionID     string `json:"sessionId,omitempty"`     // 当前会话 ID
+		UsedModelType string `json:"usedModelType,omitempty"` // 实际使用的模型类型（意图识别后）
 		controller.Response
 	}
 
@@ -77,8 +78,8 @@ func CreateSessionAndSendMessage(c *gin.Context) {
 		c.JSON(http.StatusOK, res.CodeOf(code.CodeInvalidParams))
 		return
 	}
-	//内部会创建会话并发送消息，并会将AI回答、当前会话返回
-	session_id, aiInformation, code_ := session.CreateSessionAndSendMessage(userName, req.UserQuestion, req.ModelType)
+	//内部会创建会话并发送消息，并会将 AI 回答、当前会话返回
+	session_id, aiInformation, usedModelType, code_ := session.CreateSessionAndSendMessage(userName, req.UserQuestion, req.ModelType)
 
 	if code_ != code.CodeSuccess {
 		c.JSON(http.StatusOK, res.CodeOf(code_))
@@ -88,6 +89,7 @@ func CreateSessionAndSendMessage(c *gin.Context) {
 	res.Success()
 	res.AiInformation = aiInformation
 	res.SessionID = session_id
+	res.UsedModelType = usedModelType
 	c.JSON(http.StatusOK, res)
 }
 
