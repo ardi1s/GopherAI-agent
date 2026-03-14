@@ -5,6 +5,7 @@ import (
 	"GopherAI/model"
 	"GopherAI/utils"
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -119,4 +120,22 @@ func (a *AIHelper) StreamResponse(userName string, ctx context.Context, cb Strea
 // GetModelType 获取模型类型
 func (a *AIHelper) GetModelType() string {
 	return a.model.GetModelType()
+}
+
+// Search RAG 检索方法（委托给底层模型实现）
+func (a *AIHelper) Search(ctx context.Context, query string) (string, error) {
+	// 尝试类型断言，看底层模型是否实现了 Search 方法
+	if searcher, ok := a.model.(interface{ Search(context.Context, string) (string, error) }); ok {
+		return searcher.Search(ctx, query)
+	}
+	return "", fmt.Errorf("model does not support Search method")
+}
+
+// CallTool MCP 工具调用方法（委托给底层模型实现）
+func (a *AIHelper) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+	// 尝试类型断言，看底层模型是否实现了 CallTool 方法
+	if caller, ok := a.model.(interface{ CallTool(context.Context, string, map[string]interface{}) (string, error) }); ok {
+		return caller.CallTool(ctx, toolName, args)
+	}
+	return "", fmt.Errorf("model does not support CallTool method")
 }

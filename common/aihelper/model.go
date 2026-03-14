@@ -21,7 +21,7 @@ import (
 
 type StreamCallback func(msg string)
 
-// AIModel 定义AI模型接口
+// AIModel 定义 AI 模型接口
 type AIModel interface {
 	GenerateResponse(ctx context.Context, messages []*schema.Message) (*schema.Message, error)
 	StreamResponse(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error)
@@ -301,6 +301,27 @@ func (o *AliRAGModel) streamWithoutRAG(ctx context.Context, messages []*schema.M
 	}
 
 	return fullResp.String(), nil
+}
+
+// Search 暴露 RAG 检索方法，供联动工作流使用
+func (o *AliRAGModel) Search(ctx context.Context, query string) (string, error) {
+	// 1. 创建 RAG 查询器
+	ragQuery, err := rag.NewRAGQuery(ctx, o.username)
+	if err != nil {
+		log.Printf("Failed to create RAG query: %v", err)
+		return "", fmt.Errorf("failed to create RAG query: %v", err)
+	}
+
+	// 2. 检索相关文档
+	docs, err := ragQuery.RetrieveDocuments(ctx, query)
+	if err != nil {
+		log.Printf("Failed to retrieve documents: %v", err)
+		return "", fmt.Errorf("failed to retrieve documents: %v", err)
+	}
+
+	// 3. 构建检索结果文本
+	result := rag.BuildRAGPrompt(query, docs)
+	return result, nil
 }
 
 func (o *AliRAGModel) GetModelType() string { return "2" }
@@ -622,9 +643,9 @@ func (m *MCPModel) callMCPTool(ctx context.Context, client *client.Client, toolN
 }
 
 // extractCityFromResponse 从响应中提取城市名称
-// 直接从AI返回的JSON中提取城市，不预留城市列表
+// 直接从 AI 返回的 JSON 中提取城市，不预留城市列表
 func (m *MCPModel) extractCityFromResponse(response string) string {
-	// 尝试从JSON中提取城市
+	// 尝试从 JSON 中提取城市
 	var toolCall AIToolCall
 	if err := json.Unmarshal([]byte(response), &toolCall); err == nil {
 		if args, ok := toolCall.Args["city"].(string); ok {
@@ -632,9 +653,28 @@ func (m *MCPModel) extractCityFromResponse(response string) string {
 		}
 	}
 
-	// 如果JSON解析失败，尝试从文本中提取城市名称
+	// 如果 JSON 解析失败，尝试从文本中提取城市名称
 	// 这部分可以根据实际需要扩展，但不再预留固定城市列表
 	return ""
+}
+
+// CallTool 暴露 MCP 工具调用方法，供联动工作流使用
+func (m *MCPModel) CallTool(ctx context.Context, toolName string, args map[string]interface{}) (string, error) {
+	// 获取 MCP 客户端
+	mcpClient, err := m.getMCPClient(ctx)
+	if err != nil {
+		log.Printf("MCP client error: %v", err)
+		return "", fmt.Errorf("failed to get MCP client: %v", err)
+	}
+
+	// 调用 MCP 工具
+	toolResult, err := m.callMCPTool(ctx, mcpClient, toolName, args)
+	if err != nil {
+		log.Printf("MCP tool call failed: %v", err)
+		return "", fmt.Errorf("failed to call MCP tool: %v", err)
+	}
+
+	return toolResult, nil
 }
 
 // GetModelType 获取模型类型

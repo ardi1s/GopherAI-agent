@@ -25,7 +25,7 @@ func init() {
 	baseURL := os.Getenv("OPENAI_BASE_URL")
 	// 使用轻量级模型做意图识别，降低成本
 	model := "qwen-turbo"
-	
+
 	if apiKey != "" {
 		intentRecognizer = intent.NewIntentRecognizer(apiKey, baseURL, model)
 		log.Println("IntentRecognizer initialized")
@@ -52,12 +52,12 @@ func GetUserSessionsByUserName(userName string) ([]model.SessionInfo, error) {
 
 func CreateSessionAndSendMessage(userName string, userQuestion string, modelType string) (string, string, string, code.Code) {
 	originalModelType := modelType
-	
+
 	// 如果 modelType 为空，自动识别意图
 	if modelType == "" || modelType == "auto" {
 		modelType = detectModelType(userQuestion)
 	}
-	
+
 	//1：创建一个新的会话
 	newSession := &model.Session{
 		ID:       uuid.New().String(),
@@ -97,15 +97,15 @@ func detectModelType(question string) string {
 	if intentRecognizer == nil {
 		return "1" // 默认普通聊天
 	}
-	
+
 	intentResult, err := intentRecognizer.Recognize(context.Background(), question)
 	if err != nil {
 		log.Printf("detectModelType error: %v", err)
 		return "1"
 	}
-	
+
 	log.Printf("Intent detected: type=%s, tool=%s", intentResult.Type, intentResult.Tool)
-	
+
 	switch intentResult.Type {
 	case intent.IntentRAG:
 		return "2" // RAG 模型
@@ -135,12 +135,25 @@ func StreamMessageToExistingSession(userName string, sessionID string, userQuest
 	if modelType == "" || modelType == "auto" {
 		modelType = detectModelType(userQuestion)
 	}
-	
+
 	// 确保 writer 支持 Flush
 	flusher, ok := writer.(http.Flusher)
 	if !ok {
 		log.Println("StreamMessageToExistingSession: streaming unsupported")
 		return code.CodeServerBusy
+	}
+
+	// 检查是否需要执行 RAG+MCP 联动工作流
+	// 如果 modelType 是 "2"（RAG），但实际意图是联动，则执行联动逻辑
+	if modelType == "2" {
+		// 重新识别意图，检查是否需要联动
+		if intentRecognizer != nil {
+			intentResult, err := intentRecognizer.Recognize(context.Background(), userQuestion)
+			if err == nil && intentResult.Workflow == intent.WorkflowRAGMCP {
+				log.Printf("[Workflow] Detected RAG+MCP workflow, executing...")
+				return executeRAGMCPWorkflow(userName, sessionID, userQuestion, modelType, writer, flusher)
+			}
+		}
 	}
 
 	manager := aihelper.GetGlobalManager()
@@ -216,7 +229,7 @@ func ChatSend(userName string, sessionID string, userQuestion string, modelType 
 	if modelType == "" || modelType == "auto" {
 		modelType = detectModelType(userQuestion)
 	}
-	
+
 	//1：获取 AIHelper
 	manager := aihelper.GetGlobalManager()
 	config := map[string]interface{}{

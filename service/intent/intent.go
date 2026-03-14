@@ -26,9 +26,19 @@ const (
 	ToolNone    MCPTool = "none"
 )
 
+type WorkflowType string
+
+const (
+	WorkflowChat    WorkflowType = "chat"     // 普通聊天
+	WorkflowRAG     WorkflowType = "rag"      // 只用 RAG
+	WorkflowMCP     WorkflowType = "mcp"      // 只用 MCP
+	WorkflowRAGMCP  WorkflowType = "rag+MCP"  // RAG + MCP 联动
+)
+
 type IntentResult struct {
-	Type IntentType `json:"type"`
-	Tool MCPTool    `json:"tool,omitempty"`
+	Type     IntentType   `json:"type"`
+	Workflow WorkflowType `json:"workflow,omitempty"`
+	Tool     MCPTool      `json:"tool,omitempty"`
 }
 
 // IntentRecognizer 意图识别器
@@ -68,28 +78,64 @@ func (r *IntentRecognizer) Recognize(ctx context.Context, question string) (*Int
 func (r *IntentRecognizer) matchByRules(question string) *IntentResult {
 	question = strings.ToLower(question)
 	
+	// 检查是否需要联动（同时涉及文档和工具）
+	needRAG := false
+	needMCP := false
+	
 	// RAG 相关关键词
-	ragKeywords := []string{"文档", "文件", "上传", "知识库", "资料", "文章", "pdf", "word", "txt", "md"}
+	ragKeywords := []string{"文档", "文件", "上传", "知识库", "资料", "文章", "pdf", "word", "txt", "md", "代码", "错误", "bug"}
 	for _, keyword := range ragKeywords {
 		if strings.Contains(question, keyword) {
-			return &IntentResult{Type: IntentRAG}
+			needRAG = true
+			break
 		}
 	}
 	
-	// 天气相关
-	weatherKeywords := []string{"天气", "气温", "下雨", "晴天", "阴天", "下雪", "刮风"}
-	for _, keyword := range weatherKeywords {
+	// MCP 相关关键词
+	mcpKeywords := []string{
+		"天气", "气温", "下雨", "晴天", "阴天", "下雪", "刮风",
+		"几点", "时间", "日期", "星期", "号", "年", "月",
+		"运行", "执行", "测试", "验证",
+	}
+	for _, keyword := range mcpKeywords {
 		if strings.Contains(question, keyword) {
-			return &IntentResult{Type: IntentMCP, Tool: ToolWeather}
+			needMCP = true
+			break
 		}
 	}
 	
-	// 时间相关
-	timeKeywords := []string{"几点", "时间", "日期", "星期", "号", "年", "月"}
-	for _, keyword := range timeKeywords {
-		if strings.Contains(question, keyword) {
-			return &IntentResult{Type: IntentMCP, Tool: ToolTime}
+	// 同时需要 RAG 和 MCP → 联动
+	if needRAG && needMCP {
+		return &IntentResult{
+			Type:     IntentRAG,
+			Workflow: WorkflowRAGMCP,
+			Tool:     ToolWeather, // 默认给个工具，实际会根据问题判断
 		}
+	}
+	
+	// 只需要 RAG
+	if needRAG {
+		return &IntentResult{Type: IntentRAG, Workflow: WorkflowRAG}
+	}
+	
+	// 只需要 MCP
+	if needMCP {
+		// 判断具体是什么工具
+		weatherKeywords := []string{"天气", "气温", "下雨", "晴天", "阴天", "下雪", "刮风"}
+		for _, keyword := range weatherKeywords {
+			if strings.Contains(question, keyword) {
+				return &IntentResult{Type: IntentMCP, Workflow: WorkflowMCP, Tool: ToolWeather}
+			}
+		}
+		
+		timeKeywords := []string{"几点", "时间", "日期", "星期", "号", "年", "月"}
+		for _, keyword := range timeKeywords {
+			if strings.Contains(question, keyword) {
+				return &IntentResult{Type: IntentMCP, Workflow: WorkflowMCP, Tool: ToolTime}
+			}
+		}
+		
+		return &IntentResult{Type: IntentMCP, Workflow: WorkflowMCP, Tool: ToolNone}
 	}
 	
 	return nil
