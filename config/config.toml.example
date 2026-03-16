@@ -1,0 +1,53 @@
+# GopherAI 配置文件模板
+# 复制此文件为 config.toml 并填入真实配置
+
+[mainConfig]
+appName = "GopherAI"
+host = "0.0.0.0"
+port = 9090
+
+[emailConfig]
+# QQ 邮箱授权码（用于发送验证码）
+authcode = "YOUR_QQ_EMAIL_AUTHCODE"
+email = "YOUR_EMAIL@qq.com"
+
+[redisConfig]
+host = "127.0.0.1"
+port = 6379
+password = ""  # Redis 密码，如果没有设置密码则留空
+db = 0
+
+[mysqlConfig]
+host = "127.0.0.1"
+port = 3306
+user = "root"
+password = ""  # MySQL 密码
+databaseName = "GopherAI"
+charset =  "utf8mb4"
+
+[jwtConfig]
+expire_duration = 8760  # 小时
+issuer = "huanheart"
+subject = "GopherAI"
+key = "GopherAI-v1"  # JWT 签名密钥
+
+[rabbitmqConfig]
+host = "127.0.0.1"
+port = 5672
+username = "guest"
+password = "guest"
+vhost = "/"
+
+[ragModelConfig]
+# 通义千问/阿里百炼配置
+embeddingModel = "text-embedding-v2"
+chatModelName = "qwen3.5-plus"  # 聊天模型
+docDir = "./docs"
+baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+dimension = 1536
+apiKey = "YOUR_DASHSCOPE_API_KEY"  # 阿里百炼 API Key
+
+[voiceServiceConfig]
+# 语音服务配置（百度语音合成）
+voiceServiceApiKey = "YOUR_BAIDU_API_KEY"
+voiceServiceSecretKey = "YOUR_BAIDU_SECRET_KEY"

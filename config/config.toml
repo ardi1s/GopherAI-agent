@@ -4,8 +4,8 @@ host = "0.0.0.0"
 port = 9090
 
 [emailConfig]
-authcode = "kkaxynztjoyqjiff"
-email = "1205848407@qq.com"
+authcode = ""
+email = ""
 
 [redisConfig]
 host = "127.0.0.1"
@@ -22,26 +22,26 @@ databaseName = "GopherAI"
 charset =  "utf8mb4"
 
 [jwtConfig]
- expire_duration= 8760
- issuer= "huanheart"
- subject= "GopherAI"
- key= "GopherAI-v1"
+expire_duration= 8760
+issuer= "huanheart"
+subject= "GopherAI"
+key= "GopherAI-v1"
 
- [rabbitmqConfig]
-  host= "127.0.0.1"
-  port= 5672
-  username= "guest"
-  password= "guest"
-  vhost= "/"
+[rabbitmqConfig]
+host= "127.0.0.1"
+port= 5672
+username= "guest"
+password= "guest"
+vhost= "/"
 
- [ragModelConfig]
-  embeddingModel= "text-embedding-v2"
-  chatModelName="qwen3.5-plus"
-  docDir = "./docs"
-  baseUrl="https://dashscope.aliyuncs.com/compatible-mode/v1"
-  dimension=1536
-  apiKey="sk-1bb3fd06cfb5443391c5ad7b0abc901b"
+[ragModelConfig]
+embeddingModel= "text-embedding-v2"
+chatModelName="qwen3.5-plus"
+docDir = "./docs"
+baseUrl=""
+dimension=1536
+apiKey=""
 
-  [voiceServiceConfig]
-  voiceServiceApiKey = "6MfQRm7SLpPHysFdNrMuerwB"
-  voiceServiceSecretKey = "3tIhXWtQ5vB1t4aoJBMHDeR6YszS1xTn"
+[voiceServiceConfig]
+voiceServiceApiKey = ""
+voiceServiceSecretKey = ""
