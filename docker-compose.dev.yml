@@ -1,0 +1,57 @@
+version: '3.8'
+
+# 开发环境配置 - 只启动基础设施服务
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: gopherai-mysql-dev
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: gopherai123
+      MYSQL_DATABASE: GopherAI
+      MYSQL_USER: gopherai
+      MYSQL_PASSWORD: gopherai123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+    networks:
+      - gopherai-dev-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: gopherai-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - gopherai-dev-network
+
+  # RabbitMQ 消息队列
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: gopherai-rabbitmq-dev
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_dev_data:/var/lib/rabbitmq
+    networks:
+      - gopherai-dev-network
+
+volumes:
+  mysql_dev_data:
+  redis_dev_data:
+  rabbitmq_dev_data:
+
+networks:
+  gopherai-dev-network:
+    driver: bridge

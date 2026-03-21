@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gopherai
+  labels:
+    name: gopherai
+    app.kubernetes.io/name: gopherai
+    app.kubernetes.io/component: namespace

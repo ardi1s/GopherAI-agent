@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gopherai
+
+resources:
+  - namespace.yaml
+  - secret.yaml
+  - configmap.yaml
+  - mysql.yaml
+  - redis.yaml
+  - rabbitmq.yaml
+  - backend.yaml
+  - frontend.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: gopherai
+  app.kubernetes.io/managed-by: kubectl
