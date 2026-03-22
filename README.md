@@ -13,31 +13,79 @@
 - 📱 响应式 UI：基于 Vue 3 的现代化前端
 - 🐳 云原生支持：完整的 Docker 和 Kubernetes 部署方案
 
-## 快速开始
+## 快速开始（Docker 部署）
 
-### 方式一：Docker Compose（推荐）
+### 环境要求
+
+- Docker Desktop 4.0+
+- Docker Compose 2.0+
+
+### 1. 配置 Docker 镜像源（国内用户）
+
+编辑 Docker 配置文件：
 
 ```bash
-# 1. 克隆项目
+# 编辑 daemon.json
+nano ~/.docker/daemon.json
+```
+
+添加以下内容：
+
+```json
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io"
+  ]
+}
+```
+
+重启 Docker Desktop 使配置生效。
+
+### 2. 克隆项目
+
+```bash
 git clone <your-repo-url>
 cd GopherAI-v2
+```
 
-# 2. 复制并编辑配置文件
-cp config/config.toml.example config/config.toml
-# 编辑 config.toml，填入你的 API Key 和数据库配置
+### 3. 启动服务
 
-# 3. 启动所有服务
+```bash
+# 启动所有服务（后台运行）
 docker-compose up -d
 
-# 4. 查看日志
+# 查看服务状态
+docker ps
+
+# 查看日志
 docker-compose logs -f
 ```
 
-访问 http://localhost 即可使用。
+### 4. 访问服务
 
-### 方式二：本地开发环境
+- **前端页面**: http://localhost
+- **后端 API**: http://localhost:9091
+- **RabbitMQ 管理界面**: http://localhost:15672 (账号: admin / 密码: admin123)
 
-#### 1. 环境要求
+### 5. 停止服务
+
+```bash
+# 停止所有服务（保留数据）
+docker-compose stop
+
+# 启动已停止的服务
+docker-compose start
+
+# 停止并删除容器（保留数据）
+docker-compose down
+
+# 停止并删除容器+数据（慎用）
+docker-compose down -v
+```
+
+## 本地开发环境
+
+### 环境要求
 
 - Go 1.24+
 - Node.js 18+
@@ -45,24 +93,19 @@ docker-compose logs -f
 - MySQL 8.0+
 - RabbitMQ 3.12+
 
-#### 2. 启动基础设施
+### 1. 启动基础设施
 
 ```bash
 # 使用 Docker Compose 启动基础设施（MySQL、Redis、RabbitMQ）
 make dev-up
 
 # 或者手动启动
-# Redis
 redis-stack-server
-
-# MySQL
 mysql -u root -p
-
-# RabbitMQ
 rabbitmq-server
 ```
 
-#### 3. 安装依赖
+### 2. 安装依赖
 
 ```bash
 # 安装 Go 依赖
@@ -73,7 +116,7 @@ cd vue-frontend
 npm install
 ```
 
-#### 4. 配置项目
+### 3. 配置项目
 
 ```bash
 # 复制配置文件模板
@@ -91,7 +134,7 @@ vim config/config.toml
 - `mysqlConfig`: MySQL 数据库配置
 - `redisConfig`: Redis 配置
 
-#### 5. 启动服务
+### 4. 启动服务
 
 ```bash
 # 方式一：使用启动脚本
@@ -108,46 +151,34 @@ npm run serve
 
 访问 http://localhost:8080 即可使用。
 
-## 云原生部署
+## Kubernetes 部署
 
-### Docker 部署
+### 1. 修改配置
 
 ```bash
-# 构建镜像
-make build
-
-# 或者分别构建
-make build-backend
-make build-frontend
-
-# 标记并推送镜像
-make tag-latest
-make push
+# 编辑 secret.yaml，填入真实的密钥和 API Key
+vim k8s/secret.yaml
 ```
 
-### Kubernetes 部署
+### 2. 部署到 Kubernetes
 
 ```bash
-# 1. 修改配置
-# 编辑 k8s/secret.yaml，填入真实的密钥和 API Key
-vim k8s/secret.yaml
-
-# 2. 部署到 Kubernetes
+# 部署到 Kubernetes
 make deploy-k8s
 
-# 3. 查看部署状态
+# 查看部署状态
 make k8s-status
 
-# 4. 查看日志
+# 查看日志
 make k8s-logs-backend
 make k8s-logs-frontend
 
-# 5. 本地端口转发测试
+# 本地端口转发测试
 make k8s-port-forward-frontend  # 访问 http://localhost:8080
 make k8s-port-forward-backend   # 访问 http://localhost:9090
 ```
 
-#### Kubernetes 架构
+### 3. Kubernetes 架构
 
 ```
 Namespace: gopherai
@@ -201,11 +232,10 @@ GopherAI/
 ├── router/                   # 路由配置
 ├── middleware/               # 中间件
 ├── config/                   # 配置文件
+│   ├── config.toml.example  # 配置模板
+│   └── config.docker.toml   # Docker 专用配置
 ├── vue-frontend/             # 前端代码
 │   ├── src/
-│   │   ├── views/
-│   │   ├── router/
-│   │   └── utils/
 │   ├── Dockerfile
 │   └── nginx.conf
 ├── k8s/                      # Kubernetes 配置
@@ -285,21 +315,31 @@ make clean                  # 清理 Docker 资源
 - 可扩展自定义工具
 - 内置天气查询、时间查询等工具
 
-## 开发指南
-
-### 添加新模型
-
-1. 在 `common/aihelper/model.go` 中实现 `AIModel` 接口
-2. 在 `aihelper/manager.go` 中注册新模型
-3. 在配置文件中添加模型配置
-
-### 添加新工具（MCP）
-
-1. 实现 MCP 工具接口
-2. 在 `common/aihelper/model.go` 的 `MCPModel` 中注册
-3. 更新意图识别逻辑
-
 ## 常见问题
+
+### Q: Docker 镜像拉取失败？
+
+A: 配置国内镜像源：
+
+```bash
+# 编辑 ~/.docker/daemon.json
+{
+  "registry-mirrors": [
+    "https://docker.m.daocloud.io"
+  ]
+}
+```
+
+重启 Docker Desktop 后重试。
+
+### Q: 端口被占用？
+
+A: 修改 `docker-compose.yml` 中的端口映射：
+
+```yaml
+ports:
+  - "9091:9090"  # 将主机端口从 9090 改为 9091
+```
 
 ### Q: 如何获取 API Key？
 

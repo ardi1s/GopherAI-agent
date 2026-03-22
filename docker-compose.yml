@@ -77,9 +77,9 @@ services:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
-      - ./config/config.toml:/root/config/config.toml:ro
+      - ./config/config.docker.toml:/root/config/config.toml:ro
       - ./docs:/root/docs:ro
     networks:
       - gopherai-network
