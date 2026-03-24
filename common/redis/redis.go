@@ -27,9 +27,35 @@ func Init() {
 		Addr:     addr,
 		Password: password,
 		DB:       db,
-		Protocol: 2, // 使用 Protocol 2 避免 maint_notifications 警告
+		Protocol: 2,
+	})
+}
+
+func InitWithSentinel() error {
+	conf := config.GetConfig()
+
+	sentinelAddrs := []string{
+		"gopherai-redis-sentinel:26379",
+	}
+
+	Rdb = redisCli.NewFailoverClient(&redisCli.FailoverOptions{
+		MasterName:       "mymaster",
+		SentinelAddrs:    sentinelAddrs,
+		Password:         "",
+		DB:               0,
+		PoolSize:         100,
+		MinIdleConns:     10,
+		MaxRetries:       3,
+		RetryPeriod:      3 * time.Second,
+		CheckInterval:    1 * time.Minute,
 	})
 
+	ctx := context.Background()
+	if err := Rdb.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("连接 Redis Sentinel 失败: %w", err)
+	}
+
+	return nil
 }
 
 func SetCaptchaForEmail(email, captcha string) error {
@@ -44,20 +70,13 @@ func CheckCaptchaForEmail(email, userInput string) (bool, error) {
 	storedCaptcha, err := Rdb.Get(ctx, key).Result()
 	if err != nil {
 		if err == redisCli.Nil {
-
 			return false, nil
 		}
-
 		return false, err
 	}
 
 	if strings.EqualFold(storedCaptcha, userInput) {
-
-		// 验证成功后删除 key
 		if err := Rdb.Del(ctx, key).Err(); err != nil {
-
-		} else {
-
 		}
 		return true, nil
 	}
@@ -65,18 +84,15 @@ func CheckCaptchaForEmail(email, userInput string) (bool, error) {
 	return false, nil
 }
 
-// InitRedisIndex 初始化 Redis 索引，支持按文件名区分
 func InitRedisIndex(ctx context.Context, filename string, dimension int) error {
 	indexName := GenerateIndexName(filename)
 
-	// 检查索引是否存在
 	_, err := Rdb.Do(ctx, "FT.INFO", indexName).Result()
 	if err == nil {
 		fmt.Println("索引已存在，跳过创建")
 		return nil
 	}
 
-	// 如果索引不存在，创建新索引
 	if !strings.Contains(err.Error(), "Unknown index name") {
 		return fmt.Errorf("检查索引失败: %w", err)
 	}
@@ -85,7 +101,6 @@ func InitRedisIndex(ctx context.Context, filename string, dimension int) error {
 
 	prefix := GenerateIndexNamePrefix(filename)
 
-	// 创建索引
 	createArgs := []interface{}{
 		"FT.CREATE", indexName,
 		"ON", "HASH",
@@ -108,11 +123,9 @@ func InitRedisIndex(ctx context.Context, filename string, dimension int) error {
 	return nil
 }
 
-// DeleteRedisIndex 删除 Redis 索引，支持按文件名区分
 func DeleteRedisIndex(ctx context.Context, filename string) error {
 	indexName := GenerateIndexName(filename)
 
-	// 删除索引
 	if err := Rdb.Do(ctx, "FT.DROPINDEX", indexName).Err(); err != nil {
 		return fmt.Errorf("删除索引失败: %w", err)
 	}

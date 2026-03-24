@@ -1,5 +1,9 @@
 .PHONY: build build-backend build-frontend push push-backend push-frontend deploy deploy-k8s clean docker-compose-up docker-compose-down help
 
+# 基础路径
+ROOT_DIR := $(shell cd ../ && pwd)
+DC_DIR := $(ROOT_DIR)/deploy/docker
+
 # 镜像配置
 REGISTRY ?= docker.io
 BACKEND_IMAGE ?= gopherai/backend
@@ -11,11 +15,11 @@ build: build-backend build-frontend
 
 # 构建后端镜像
 build-backend:
-	docker build -t $(BACKEND_IMAGE):$(TAG) .
+	cd $(ROOT_DIR) && docker build -t $(BACKEND_IMAGE):$(TAG) -f $(DC_DIR)/Dockerfile .
 
 # 构建前端镜像
 build-frontend:
-	docker build -t $(FRONTEND_IMAGE):$(TAG) ./vue-frontend
+	cd $(ROOT_DIR) && docker build -t $(FRONTEND_IMAGE):$(TAG) -f $(DC_DIR)/Dockerfile.frontend $(ROOT_DIR)/vue-frontend
 
 # 推送所有镜像
 push: push-backend push-frontend
@@ -35,31 +39,31 @@ tag-latest:
 
 # Docker Compose 命令
 docker-compose-up:
-	docker-compose up -d
+	cd $(DC_DIR) && docker-compose up -d
 
 docker-compose-down:
-	docker-compose down
+	cd $(DC_DIR) && docker-compose down
 
 docker-compose-logs:
-	docker-compose logs -f
+	cd $(DC_DIR) && docker-compose logs -f
 
 docker-compose-build:
-	docker-compose up -d --build
+	cd $(DC_DIR) && docker-compose up -d --build
 
 # 开发环境（仅基础设施）
 dev-up:
-	docker-compose -f docker-compose.dev.yml up -d
+	cd $(DC_DIR) && docker-compose -f docker-compose.dev.yml up -d
 
 dev-down:
-	docker-compose -f docker-compose.dev.yml down
+	cd $(DC_DIR) && docker-compose -f docker-compose.dev.yml down
 
 # Kubernetes 部署
 deploy-k8s:
-	kubectl apply -k k8s/
+	cd $(ROOT_DIR)/deploy/k8s && kubectl apply -k .
 
 # 删除 K8s 部署
 delete-k8s:
-	kubectl delete -k k8s/
+	cd $(ROOT_DIR)/deploy/k8s && kubectl delete -k .
 
 # 查看 K8s 状态
 k8s-status:

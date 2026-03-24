@@ -15,7 +15,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ../../scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - gopherai-network
     healthcheck:
@@ -24,15 +24,25 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis 缓存
-  redis:
+  # Redis Master
+  redis-master:
     image: redis:7-alpine
-    container_name: gopherai-redis
+    container_name: gopherai-redis-master
     restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --rdbcompression yes
+      --dbfilename dump.rdb
+      --dir /data
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - redis_master_data:/data
     networks:
       - gopherai-network
     healthcheck:
@@ -40,6 +50,56 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Redis Slave (从节点，自动同步主节点数据)
+  redis-slave:
+    image: redis:7-alpine
+    container_name: gopherai-redis-slave
+    restart: unless-stopped
+    command: >
+      redis-server
+      --replicaof gopherai-redis-master 6379
+      --appendonly yes
+      --appendfsync everysec
+      --rdbcompression yes
+      --dbfilename dump.rdb
+      --dir /data
+      --readonly
+      --replica-read-only yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_slave_data:/data
+    networks:
+      - gopherai-network
+    depends_on:
+      - redis-master
+    healthcheck:
+      test: ["CMD", "redis-cli", "-h", "gopherai-redis-master", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Sentinel (哨兵，自动故障转移)
+  redis-sentinel:
+    image: redis:7-alpine
+    container_name: gopherai-redis-sentinel
+    restart: unless-stopped
+    command: >
+      redis-sentinel
+      --sentinel monitor mymaster gopherai-redis-master 6379 2
+      --sentinel down-after-milliseconds mymaster 5000
+      --sentinel failover-timeout mymaster 10000
+      --sentinel parallel-syncs mymaster 1
+    ports:
+      - "26379:26379"
+    volumes:
+      - redis_sentinel_data:/data
+    networks:
+      - gopherai-network
+    depends_on:
+      - redis-master
+      - redis-slave
 
   # RabbitMQ 消息队列
   rabbitmq:
@@ -65,22 +125,24 @@ services:
   # 后端服务
   backend:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile
     container_name: gopherai-backend
     restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
-      redis:
+      redis-master:
         condition: service_healthy
+      redis-sentinel:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
     ports:
       - "9091:9090"
     volumes:
-      - ./config/config.docker.toml:/root/config/config.toml:ro
-      - ./docs:/root/docs:ro
+      - ../../config/config.docker.toml:/root/config/config.toml:ro
+      - ../../docs:/root/docs:ro
     networks:
       - gopherai-network
     environment:
@@ -95,8 +157,8 @@ services:
   # 前端服务
   frontend:
     build:
-      context: ./vue-frontend
-      dockerfile: Dockerfile
+      context: ../../vue-frontend
+      dockerfile: deploy/docker/Dockerfile.frontend
     container_name: gopherai-frontend
     restart: unless-stopped
     depends_on:
@@ -113,7 +175,9 @@ services:
 
 volumes:
   mysql_data:
-  redis_data:
+  redis_master_data:
+  redis_slave_data:
+  redis_sentinel_data:
   rabbitmq_data:
 
 networks:
