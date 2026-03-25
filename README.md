@@ -98,13 +98,9 @@ cd GopherAI-v2
 
 ```bash
 # 进入部署目录
-cd deploy
+cd deploy/docker
 
 # 启动所有服务（后台运行）
-make docker-compose-up
-
-# 或者手动启动
-cd docker
 docker-compose up -d
 ```
 
@@ -118,13 +114,11 @@ docker-compose up -d
 
 ```bash
 # 停止所有服务（保留数据）
-make docker-compose-down
+cd deploy/docker
+docker-compose down
 
 # 启动已停止的服务
-make docker-compose-up
-
-# 停止并删除容器（保留数据）
-docker-compose down
+docker-compose up -d
 
 # 停止并删除容器+数据（慎用）
 docker-compose down -v
