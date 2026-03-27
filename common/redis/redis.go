@@ -32,22 +32,22 @@ func Init() {
 }
 
 func InitWithSentinel() error {
-	conf := config.GetConfig()
+	// conf := config.GetConfig()
 
 	sentinelAddrs := []string{
 		"gopherai-redis-sentinel:26379",
 	}
 
 	Rdb = redisCli.NewFailoverClient(&redisCli.FailoverOptions{
-		MasterName:       "mymaster",
-		SentinelAddrs:    sentinelAddrs,
-		Password:         "",
-		DB:               0,
-		PoolSize:         100,
-		MinIdleConns:     10,
-		MaxRetries:       3,
-		RetryPeriod:      3 * time.Second,
-		CheckInterval:    1 * time.Minute,
+		MasterName:    "mymaster",
+		SentinelAddrs: sentinelAddrs,
+		Password:      "",
+		DB:            0,
+		PoolSize:      100,
+		MinIdleConns:  10,
+		MaxRetries:    3,
+		// RetryPeriod:      3 * time.Second,
+		// CheckInterval:    1 * time.Minute,
 	})
 
 	ctx := context.Background()
